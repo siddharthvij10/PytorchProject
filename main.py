@@ -13,7 +13,7 @@ import os
 import argparse
 
 from PytorchProject.models import *
-from utils import progress_bar
+from PytorchProject.utils import progress_bar
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
