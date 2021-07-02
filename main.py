@@ -12,7 +12,7 @@ import torchvision.transforms as transforms
 import os
 import argparse
 
-from PytorchProject.models import *
+from PytorchProject.models.resnet import *
 # from PytorchProject.utils import progress_bar
 
 
