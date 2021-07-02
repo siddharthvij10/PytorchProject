@@ -16,11 +16,11 @@ from PytorchProject.models import *
 # from PytorchProject.utils import progress_bar
 
 
-parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--resume', '-r', action='store_true',
-                    help='resume from checkpoint')
-args = parser.parse_args()
+# parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
+# parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+# parser.add_argument('--resume', '-r', action='store_true',
+#                     help='resume from checkpoint')
+# args = parser.parse_args()
 print('test3')
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
