@@ -15,7 +15,7 @@ import argparse
 import sys
 path = (sys.path)
 print(path)
-os.path.join(path, "/PythonProject"))
+os.path.join(path, "/PythonProject")
 
 from models import *
 from utils import progress_bar
