@@ -3,6 +3,23 @@
     - msr_init: net parameter initialization.
     - progress_bar: progress bar mimic xlua.progress.
 '''
+# main file
+'''Train CIFAR10 with PyTorch.'''
+import argparse
+import matplotlib.pyplot as plt
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import torch.backends.cudnn as cudnn
+import torchvision
+import torchvision.transforms as transforms
+import os
+import argparse
+from PytorchProject.models.resnet import *
+
+
 import os
 import sys
 import time
@@ -12,112 +29,88 @@ import torch.nn as nn
 import torch.nn.init as init
 
 
-def get_mean_and_std(dataset):
-    '''Compute the mean and std value of dataset.'''
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=2)
-    mean = torch.zeros(3)
-    std = torch.zeros(3)
-    print('==> Computing mean and std..')
-    for inputs, targets in dataloader:
-        for i in range(3):
-            mean[i] += inputs[:,i,:,:].mean()
-            std[i] += inputs[:,i,:,:].std()
-    mean.div_(len(dataset))
-    std.div_(len(dataset))
-    return mean, std
+class data_utils:
+    
+    def __init__(self):
+        # self.best_acc = 0  # best test accuracy
+        # self.start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+        # self.args = args
+        pass
+    
+    def show_misclassified_images( self, misc_im,misc_tr,misc_pred):
+        self.misc_im=misc_im.cpu()
+        self.misc_tr=misc_tr.cpu()
+        self.misc_pred=misc_pred.cpu()
+        fig=plt.figure(figsize=(4, 10))
+        columns = 2
+        rows = 5
+        for i in range(1, columns*rows +1):
+            img = self.misc_im[i-1]
+            print('img is ', img)
+            img = torch.transpose(img, 0, 2)
+            print('img2 is ', img)
+            p = self.misc_pred[i-1]
+            t = self.misc_tr[i-1]
+            fig.add_subplot(rows, columns, i)
+            plt.imshow(img) 
+            plt.axis('off')
+            plt.title("Pred:"+str(p)[7:8]+"  Act: "+str(t)[7:8])
+        plt.show()
 
-def init_params(net):
-    '''Init layer parameters.'''
-    for m in net.modules():
-        if isinstance(m, nn.Conv2d):
-            init.kaiming_normal(m.weight, mode='fan_out')
-            if m.bias:
-                init.constant(m.bias, 0)
-        elif isinstance(m, nn.BatchNorm2d):
-            init.constant(m.weight, 1)
-            init.constant(m.bias, 0)
-        elif isinstance(m, nn.Linear):
-            init.normal(m.weight, std=1e-3)
-            if m.bias:
-                init.constant(m.bias, 0)
+    def plot_accuracy_loss_graph(self, train_loss_graph, train_accuracy_graph, test_loss_graph, test_accuracy_graph):
+        self.train_loss_graph =train_loss_graph
+        self.train_accuracy_graph=train_accuracy_graph
+        self.test_loss_graph = test_loss_graph 
+        self.test_accuracy_graph=test_accuracy_graph
+        plt.figure(figsize=(10,5))
+        plt.title("Test Loss and Train Loss")
+        plt.plot(self.test_loss_graph,label="Test Loss")
+        plt.plot(self.train_loss_graph,label="Train Loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.show()
+    
+        plt.figure(figsize=(10,5))
+        plt.title("Train Accuracy and Test Accuracy")
+        plt.plot(self.test_accuracy_graph,label="Test Accuracy")
+        plt.plot(self.train_accuracy_graph,label="Train Accuracy")
+        plt.xlabel("Epochs")
+        plt.ylabel("Accuracy")
+        plt.legend()
+        plt.show()
 
-# _, term_width = os.popen('stty size', 'r').read().split()
-# term_width = int(term_width)
+    def data(self, dataset, batch_size):
+        self.batch_size = batch_size
+        print('==> Preparing data..')
+        self.dataset = dataset
+        if self.dataset == 'CIFAR10':
+            self.transform_train = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                
+                # transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+            
+            self.transform_test = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+            
+            self.trainset = torchvision.datasets.CIFAR10(
+                root='./data', train=True, download=True, transform=self.transform_train)
+            self.trainloader = torch.utils.data.DataLoader(
+                self.trainset, batch_size=self.batch_size, shuffle=True, num_workers=2)
+    
+            self.testset = torchvision.datasets.CIFAR10(
+                root='./data', train=False, download=True, transform=self.transform_test)
+            self.testloader = torch.utils.data.DataLoader(
+                self.testset, batch_size=self.batch_size, shuffle=False, num_workers=2)
+    
+            self.classes = ('plane', 'car', 'bird', 'cat', 'deer',
+                       'dog', 'frog', 'horse', 'ship', 'truck')
+        else:
+            print('unknown dataset provided by user.')
 
-TOTAL_BAR_LENGTH = 65.
-last_time = time.time()
-begin_time = last_time
-# def progress_bar(current, total, msg=None):
-#     global last_time, begin_time
-#     if current == 0:
-#         begin_time = time.time()  # Reset for new bar.
-
-#     cur_len = int(TOTAL_BAR_LENGTH*current/total)
-#     rest_len = int(TOTAL_BAR_LENGTH - cur_len) - 1
-
-#     sys.stdout.write(' [')
-#     for i in range(cur_len):
-#         sys.stdout.write('=')
-#     sys.stdout.write('>')
-#     for i in range(rest_len):
-#         sys.stdout.write('.')
-#     sys.stdout.write(']')
-
-#     cur_time = time.time()
-#     step_time = cur_time - last_time
-#     last_time = cur_time
-#     tot_time = cur_time - begin_time
-
-#     L = []
-#     L.append('  Step: %s' % format_time(step_time))
-#     L.append(' | Tot: %s' % format_time(tot_time))
-#     if msg:
-#         L.append(' | ' + msg)
-
-#     msg = ''.join(L)
-#     sys.stdout.write(msg)
-#     for i in range(term_width-int(TOTAL_BAR_LENGTH)-len(msg)-3):
-#         sys.stdout.write(' ')
-
-#     # Go back to the center of the bar.
-#     for i in range(term_width-int(TOTAL_BAR_LENGTH/2)+2):
-#         sys.stdout.write('\b')
-#     sys.stdout.write(' %d/%d ' % (current+1, total))
-
-#     if current < total-1:
-#         sys.stdout.write('\r')
-#     else:
-#         sys.stdout.write('\n')
-#     sys.stdout.flush()
-
-def format_time(seconds):
-    days = int(seconds / 3600/24)
-    seconds = seconds - days*3600*24
-    hours = int(seconds / 3600)
-    seconds = seconds - hours*3600
-    minutes = int(seconds / 60)
-    seconds = seconds - minutes*60
-    secondsf = int(seconds)
-    seconds = seconds - secondsf
-    millis = int(seconds*1000)
-
-    f = ''
-    i = 1
-    if days > 0:
-        f += str(days) + 'D'
-        i += 1
-    if hours > 0 and i <= 2:
-        f += str(hours) + 'h'
-        i += 1
-    if minutes > 0 and i <= 2:
-        f += str(minutes) + 'm'
-        i += 1
-    if secondsf > 0 and i <= 2:
-        f += str(secondsf) + 's'
-        i += 1
-    if millis > 0 and i <= 2:
-        f += str(millis) + 'ms'
-        i += 1
-    if f == '':
-        f = '0ms'
-    return f
+        return self.trainloader, self.testloader
